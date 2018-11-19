@@ -1,0 +1,735 @@
+EDA on Kickstarter Projects
+========================================================
+
+
+```{r echo=FALSE, message=FALSE, warning=FALSE, packages}
+
+# load packages
+
+library(ggplot2)
+library(dplyr)
+library(ggthemes)
+library(rworldmap)
+library(knitr)
+library(tidyr)
+library(gridExtra)
+library(grid)
+
+```
+
+## Description :
+Crowdfunding has become one of the main sources of initial capital for small businesses and start-up companies that are looking to launch their first products. Websites like Kickstarter and Indiegogo provide a platform for millions of creators to present their innovative ideas to the public. This is a win-win situation where creators could accumulate initial fund while the public get access to cutting-edge prototypical products that are not available in the market yet.
+
+The dataset contain data on 379K projects started on Kickstarter between 2009-2018.
+ 
+
+```{r echo=FALSE, Load_the_Data}
+
+# Load the Data
+ks <- read.csv('ks-projects-201801.csv')
+
+#types of variables
+glimpse(ks)
+
+```
+
+### Variable Description
+* **name** : name of project 
+* **category** : sub category
+* **main_category** : category of campaign
+* **currency** : currency used to support
+* **deadline** : deadline for crowdfunding
+* **goal** : fundraising goal
+* **launched** : date launched
+* **pledged** : amount pledged by crowd
+* **state** : current condition the project is in
+* **backers** : number of backers
+* **country** : country pledged from
+* **usd pledged** : amount of money pledged
+* **usd_pledged_real** : conversion in US dollars of the pledged column
+* **usd_goal_real** : conversion in US dollars of the goal column
+
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+
+# first 5 rows of data
+head(ks)
+
+```
+
+It looks good for the first five rows, let's check if there is any NA vaules in the dataset.
+
+### Data Cleaning
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+
+# check for NA values
+sapply(ks, function(x) sum(is.na(x)))
+
+```
+
+Only usd.pledged has missing values, we can remove that entire column becase we already have usd_pledged_real column and I will also remove goal and pledged column as they already exists and also the currency column since, all the currency is already convereted into USD.
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+
+# remove us.pleged column
+ks <- ks[, -c(5,7,9,13)]
+
+# rename usd_pledged_real to usd_pledged and did the same for usd_goal_real
+colnames(ks)[10] <- "usd_pledged"
+colnames(ks)[11] <- "usd_goal"
+
+```
+
+
+
+# Univariate Plots Section
+
+### Most popular Main Category
+
+```{r echo=FALSE, Univariate_Plots}
+
+# filter data
+cat.freq <- ks %>%
+  group_by(main_category) %>%
+  summarise(count = n()) %>%
+  arrange(desc(count))
+
+# order data 
+cat.freq$main_category <- factor(cat.freq$main_category, levels=cat.freq$main_category)
+
+# plot 
+ggplot(aes(main_category, count), data = cat.freq)+
+  geom_bar(stat = 'identity')+
+  ggtitle("Projects by category")+
+  xlab("Project Category")+
+  ylab("Frequency")+
+  theme_minimal()+
+  theme(plot.title=element_text(hjust=0.5), 
+        axis.text.x=element_text(size=10, angle=90))+
+  geom_text(aes(label = count, vjust = -0.2))
+
+```
+
+Flim & Video appears to be the most popular category and Dance the least popular.
+
+### Most popular Sub Category
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+
+#filter data
+subcat.freq <- ks %>%
+  group_by(category) %>%
+  summarise(count = n())%>%
+  arrange(desc(count))
+
+#order data
+subcat.freq$category <- factor(subcat.freq$category, levels = subcat.freq$category)
+
+#plot
+ggplot(aes(category, count), data = head(subcat.freq,15))+
+  geom_bar(stat = 'identity')+
+  ggtitle("Project by Subcategory")+
+  xlab("Subcategory")+
+  ylab("Frequency")+
+  theme_minimal()+
+  theme(plot.title = element_text(hjust = 0.5),
+        axis.text.x = element_text(size = 10, angle = 90))+
+   geom_text(aes(label = count, vjust = -0.3))
+
+```
+
+Product Design is the most popular sub category and Taxidermy being is the least popular.
+
+### Average Pledge and Goal amount
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+
+# stat summary of usd pledged and goal
+summary(ks$usd_pledged)
+summary(ks$usd_goal)
+
+```
+
+Median USD pledged is 624 and Mean is 9059 while max is 20338956
+Median USD Goal is 5500 and mean is 45454 while max is 166361391
+
+In both of these there is this huge gap between mean and max is due to one backer donated a large amount.
+
+### Distribution of USD Pledged
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+#plot
+ggplot(aes(log10(usd_pledged)), data = ks)+
+  geom_histogram()+
+  geom_vline(xintercept = log10(median(ks$usd_pledged)), color = 'red')
+
+```
+
+We can see there is a slight peak in zero this might be because lot of projects have pledged 0 USD, the plot seemed to be slightly skewed to the right side and the median is around 3.
+We can also see that lower amount has a lot number of backers while the higher amount has less to none.
+
+### Distribution of USD Goal
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+
+ggplot(aes(log10(usd_goal)), data = ks)+
+  geom_histogram()+
+  geom_vline(xintercept = log10(median(ks$usd_goal)), color = 'red')
+
+```
+
+This plot is normally distributed, 3.5 is the median, there are very less projects with higher goal, maximum number of projects are in the median range.
+
+### Number of backers
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+
+summary(ks$backers)
+
+```
+
+The median of backers is 12 and mean is 105.6 while max is 219382, there is a huge gap between these it's better to plot a graph as check it out.
+
+### Distrib ution of backers
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+
+#plot 
+ggplot(aes(log10(backers)), data = ks)+
+  geom_histogram()+
+  geom_vline(xintercept = log10(median(ks$backers)), color = 'blue')
+
+```
+
+We can see that there is huge peak at 0, this is because there are lot of projects which have 0 backers, 
+the plot seems to be skewed to the left side, the median is around 1, there are very less projects that are backed by lot of people.
+
+
+### Number of projects by year
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+
+# filter data
+ks.year <- ks %>%
+  mutate(year = format(as.Date(launched, "%Y-%m-%d %H:%M:%S"), "%Y"))%>%
+  filter(!year %in% c('1970')) %>%
+  group_by(year) %>%
+  summarise(count = n())
+
+#plot
+ggplot(aes(year, count), data = ks.year)+
+  geom_bar(stat = "identity")+
+  ggtitle("Project by Year")+
+  xlab("Year")+
+  ylab("Frequency")+
+  theme_minimal()+
+  geom_text(aes(label = count, vjust = -0.3))
+
+```
+
+Kickstarter started in 2009 and we have the data till Janauary of 2018 and 2015 had the higgest number of projects and in 2016 it decrease by 20k and it also decreased in 2017, Acoording to Entrepreneur.com startup failure rate has been increased by 50% over few years and this might be one of the reason why we see the decrease in projects on Kickstarter.
+
+### Number of projects by country.
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+
+ks.country <- ks %>%
+  filter(country!='N,0"')%>%
+  group_by(country)%>%
+  summarise(counts = n())
+
+#plot number of projects by countries.
+ggplot(aes(country, counts/sum(counts)*100), data = ks.country)+
+  geom_bar(stat = 'identity')+
+  scale_y_sqrt(breaks = seq(0,80,5))+
+  ylab("% of Projects")+
+  xlab("Country")+
+  ggtitle("Percentage of projects by country")
+
+```
+
+US has over 80% of the projects, Great Britain comes second with almost 10%, this tells us that startup is quite popular is US than any other country. 
+US has around 292K number of projects out of 379K, with Great Britian coming second with 33K projects and Japan comes in last with 40 projects.
+
+Since these countries are in abbreivated form let's plot it in a map and check out!
+
+### Map Plot
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+countries.match <- joinCountryData2Map(ks.country, joinCode = "ISO2", nameJoinColumn = "country")
+
+mapCountryData(countries.match, nameColumnToPlot = "counts", mapTitle = "Number of project by countries", catMethod = "logFixedWidth", colourPalette = "topo")
+```
+
+Looks like most of the countries are from North America, Europe, Australia and one country from Asia.
+
+### State of the project 
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+
+#plot data
+ggplot(aes(state), data = ks)+
+  geom_bar()
+
+```
+
+Nearly 200K projects have failed but around 130K projects are successful, around 25K projects have been cancelled and few are even suspended, the number of live projects is very low, this was quite suprising for me and the reason for this might be people becoming much serious about startups as the failure rate is increasing which makes people not only to invest in them but also to start. 
+
+### Success Rate
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+
+prop.table(table(ks$state))*100
+
+```
+
+35% of projects are successful, over 52% of projects have failed, less than 1% of projects are suspended or undefined, around 10% of projects have been cancelled and surprisingly less than 1% of projects are live and as we already know that since, 2016 the number of projects per year is been decreasing.
+
+# Univariate Analysis
+
+### What is the structure of your dataset?
+There are 378661 observations with 11 variables (ID, Name, category, main_category, deadline, launched, state, backers, country, usd_pledged, usd_goal). The variables category, main_category, state, country are factor variables.
+
+
+### What is/are the main feature(s) of interest in your dataset?
+The main features are state, usd_pledged, usd_goal and backers I'd like to know what deteremines the state of a project, the ratio of amount pledged and goal, the relation between amount pledged and number of backers to name a few.  
+
+### What other features in the dataset do you think will help support your? 
+Category, main_category, launched and country can also help in deteremining the state and amount pledged of the project.
+
+### Did you create any new variables from existing variables in the dataset?
+No, But I did remove few variables that I wasn't going to use in this analysis. 
+
+### Of the features you investigated, were there any unusual distributions? 
+Yes, while plotting the number of projects by country since, US has almost 80% of the projects it was hard to identify the number of projects by other countries so I took a percentage of it and used scale_y_sqrt() with breaks to clearly find the percentage of projects by the other countries. I did the same for usd_pledged and usd_goal but with log10()
+
+
+# Bivariate Plots Section
+
+### Total amount pledged by category
+```{r echo=FALSE, Bivariate_Plots}
+
+# filter data
+pledged.cat <- ks %>%
+  group_by(main_category) %>%
+  summarise(total = sum(usd_pledged)) %>%
+  arrange(desc(total))
+
+# arrange
+pledged.cat$main_category <- factor(pledged.cat$main_category, levels = pledged.cat$main_category)
+
+
+#plot it
+
+ggplot(aes(main_category, total/1000000, fill=total), data = pledged.cat)+
+  geom_bar(stat = 'identity')+
+    ggtitle("Total amount pledged by category")+
+  xlab("Main Category")+
+  ylab("USD Pledged")+
+  geom_text(aes(label = paste0('$', round(total/1000000, 1))),vjust = -0.3, size = 3)+
+  theme_minimal()+
+  theme(plot.title=element_text(hjust=0.5, size = 10),
+        axis.text.x = element_text(size = 10, angle = 90), legend.position = "null")+
+  scale_fill_gradient(low = "#feefb6", high = "#fecc0c")
+
+```
+
+Games and design have the highes pledged amount whereas Dance and Journalism have the least, the number of backers are also an important factor, will find out the average amount pledged per backer for each category in Multivariate analysis.
+
+### Number of Successful project by main category
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+
+#filter data
+state.cat <- ks %>%
+  filter(state %in% c("successful", "failed"))%>%
+  group_by(main_category, state)%>%
+  summarise(counts = n()) %>%
+  mutate(per = counts/sum(counts)) %>%
+  arrange(desc(state), per)
+
+#factor data
+state.cat$main_category <- factor(state.cat$main_category, 
+                                  levels=state.cat$main_category[1:(nrow(state.cat)/2)])
+
+#plot
+ggplot(aes(main_category, per, fill = state), data = state.cat)+
+  geom_bar(stat ="identity")+
+  ggtitle("Success and Failure rate of Projects by category")+
+  xlab("Project Category")+
+  ylab("Percentage")+
+  scale_y_continuous(labels = scales::percent)+
+  scale_fill_discrete(name="Project Status", breaks=c("successful", "failed"),
+                      labels=c("Success", "Failure")) +
+  geom_text(aes(label=paste0(round(per*100,1),"%")), position=position_stack(vjust=0.5), 
+            colour="white", size=3)+
+  theme_classic()+
+  theme(plot.title=element_text(hjust=0.5), legend.position="bottom")+
+  coord_flip()
+
+
+```
+
+Dance and Theater has high success rate eventhough they are not at the top when it comes to funding, one of the reasons maybe beacue of the low risk involved, Journalism and Technology has a high failure rate.
+One of the reasons for failure of journalism might be because younger generation depending on social networks for news.
+Reason for high failure rate of technology might be because it has a higher risk and developing something within a give time and cost is not that feasible.
+
+### Relation between amount pledged and number of backers
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+
+#plot
+ggplot(aes(usd_pledged, backers), data = ks)+
+  geom_point(alpha= 1/20, position = position_jitter(h = 0))+
+  xlim(0, quantile(ks$usd_pledged, 0.95))+
+  ylim(0, quantile(ks$backers, 0.95))+
+  geom_smooth(method = "lm")
+  
+
+```
+
+From the above plot we can say that there is a positive correlation between usd_pledged and backers.
+As the amount increases the number of backers decreases.
+
+Let's find the correlation between these two variables
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+
+#correlation coefficient
+cor.test(ks$usd_pledged, ks$backers)
+
+```
+
+There is a strong correlation between these two variables.
+
+### Success rate of projects by year
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+
+# filter data
+success.year <- ks %>%
+  mutate(year = format(as.Date(launched, "%Y-%m-%d %H:%M:%S"), "%Y")) %>%
+  filter(!year %in% c('1970')) %>%
+  group_by(year, state) %>%
+  summarise(counts = n()) %>%
+  mutate(per = counts/sum(counts)) %>%
+  filter(state %in% c("successful", "failed"))
+ 
+
+# plot
+ggplot(aes(year, per, fill = state), data = success.year)+
+  geom_bar(stat ="identity")+
+  ggtitle("Success and Failure rate of Projects by Year")+
+  xlab("Year")+
+  ylab("Percentage")+
+  scale_y_continuous(labels = scales::percent)+
+  scale_fill_discrete(name="Project Status", breaks=c("successful", "failed"),
+                      labels=c("Success", "Failure")) +
+  geom_text(aes(label=paste0(round(per*100,1),"%")), position=position_stack(vjust=0.5), 
+            colour="white", size=3)+
+  theme_minimal()+
+  theme(plot.title=element_text(hjust=0.5), legend.position="bottom")+
+  coord_flip()
+
+
+```
+
+From the above plot we can see that  2011 had the highest success rate and then since 2012 it has been constantly decreasing till 2015 but, during 2015 we can see growth in the rate of success and the same with 2017. For the past two years the failure rate is decreasing.
+
+### Top projects with highest set goals
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+
+#print table
+kable(head(ks[order(-ks$usd_goal), c(2,3,7,11)], 20))
+
+```
+
+Aside from the one project that was suspended and one that was cancelled, all other projects failed here. Their goals must have been set too high and seen as being too unreasonable for the idea they were selling. 
+Let’s look at the top 15 most ambitious projects that were successfully funded instead.
+
+### Top Successful projects
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+
+#filter data
+proj.success <- ks[ks$state=="successful",]
+
+#print table
+kable(head(proj.success[order(-proj.success$usd_goal), c(2,3,7,11)], 20))
+
+```
+
+Comparing the goals of these projects with the most ambitions one we can clearly see that there is a huge gap, and Games, Design, technology are the top categries to get funded. 
+
+Let's examine the distribution of USD Goal for each category.
+
+### Distribution of USD Goal for Main Category
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+
+#plot
+ggplot(aes(main_category, usd_goal), data = ks)+
+  geom_boxplot()+
+  theme_economist()+
+  ggtitle("Distribution of Project Goal and CAtegory") + xlab("Project Category") + 
+  ylab("Project Goal (USD)") + 
+  theme(axis.text.x=element_text(size=9, angle=90))+
+  coord_cartesian(ylim = c(0,50000))
+  
+
+```
+
+Technology has an incredibly high upper quartile and median. Design and Food also have relatively high upper quartile and median values as well. These categories also performed well i.e. they have the highest USD pledge amount except journalism which has higher USD Goal but they failed to pledge.
+
+### Distribution of USD Goal and USD Pledge
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+
+#Gather columns into key-value pairs.
+usd_total <- gather(ks, type, amount, usd_pledged, usd_goal, factor_key = 'T')
+
+#plot
+ggplot(aes(log(amount+1), fill=type), data = usd_total) + 
+  geom_histogram(alpha=0.5, position="identity") + 
+  ggtitle("Distribution of log(USD Pledged) vs. log(USD Goal)") + xlab("log(USD + 1)") + 
+  ylab("Frequency") + scale_fill_discrete("Type", labels=c("USD Pledged", "USD Goal"))
+
+
+```
+
+USD Goal appears to be relatively normally distributed. USD Pledged on the other hand has a bimodal distribution, with a tall left peak, which would represent projects that received either little or no funding. The approximate centre of the distribution of USD Pledged is located to the left side of the distribution of USD Goal, which tell us that many projects did not receive the required funding that they were looking for.
+
+
+### Did you observe any interesting relationships between the other features ?
+The relation between backers and the amount pledged, as the amount increased the number of backers, i.e very less people tend to give huge amount of money.
+
+
+### What was the strongest relationship you found?
+Technology, Design and games have received the highest amount of funding even though there is huge risk and have a lower success rate involved in them and backers tend to still give them because these categories tend to provide innovative technology products.
+
+
+# Multivariate Plots Section
+
+### Average amount Pledged per Backer on each Category
+
+```{r echo=FALSE, Multivariate_Plots}
+
+#filter data
+pledge.avg <- ks %>%
+  group_by(main_category) %>%
+  summarise(pledged = sum(usd_pledged),
+            backers = sum(backers)) %>%
+  mutate(avg = pledged/backers) %>%
+  arrange(desc(avg))
+  
+#factor data
+pledge.avg$main_category <- factor(pledge.avg$main_category, levels = pledge.avg$main_category)
+
+#plot
+ggplot(aes(main_category, avg, fill = avg), data = pledge.avg)+
+  geom_bar(stat = "identity")+
+  ggtitle("Average Amount Pledged Per Backer")+ 
+  xlab("Category")+ 
+  ylab("Amount Pledged")+
+  theme_minimal()+
+  geom_text(aes(label=paste0("$", round(avg,1))), vjust=-0.5, size = 3)+
+  theme(axis.text.x=element_text(size=10, angle=90), legend.position = "null")+
+  scale_fill_gradient(low = "#feefb6", high = "#fecc0c")
+  
+```
+
+Technology has the highest amount pledged whereas, comics and crafts has the lower average amount.
+Technology has twice the amount of Games even though games is the most funded category.
+Journalism and Dance have a higher average amount but they were at the bottom when it came to total funding.
+
+### Number of  Backers per category and their success ratio.
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+
+#plot
+ggplot(aes(main_category, backers, fill = state), data = subset(ks, state %in% c("successful","failed")))+
+    geom_bar(stat= "identity")+
+   ggtitle("Number of  Backers per category and their success ratio")+ 
+  xlab("Category")+ 
+  ylab("Backers")+
+  theme_minimal()+
+  theme(axis.text.x=element_text(size=10, angle=90))
+  
+ 
+```
+
+Games is not only the top category to get highest fundings but it alos has lot of backers(people) and their success ratio to backers is good. Design and Technology are the next with to get lot of people. Journalism, Dance and Crafts have the least backers and their success to backers ratio is the best, they have almost tto no failure.
+
+### Project Success Ratio by country and category
+
+Since US has almost 80% of the projects let's compare US and Non US projects. 
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+
+#filter data for US
+ks.us <- ks%>%
+  filter(country %in% c('US')) %>%
+  group_by(main_category, state) %>%
+  summarise(counts=n()) %>%
+  mutate(per = counts/sum(counts)) %>%
+  filter(state == "successful") %>%
+  arrange(desc(per))
+
+#filter data for Non US
+
+ks.non <- ks%>%
+  filter(!country %in% c('US')) %>%
+  group_by(main_category, state) %>%
+  summarise(counts=n()) %>%
+  mutate(per = counts/sum(counts)) %>%
+  filter(state == "successful")%>%
+  arrange(desc(per))
+
+# arrange
+
+ks.us$main_category <- factor(ks.us$main_category, levels = ks.us$main_category)
+ks.non$main_category <- factor(ks.non$main_category, levels = ks.non$main_category)
+
+#plot
+
+p1 <- ggplot(aes(main_category, per), data = ks.us)+
+  geom_bar(stat = "identity")+
+  theme(axis.text.x = element_text(angle=90, hjust=1)) +
+  geom_text(aes(label=round(per*100, digits = 0), vjust = -0.3))+
+  ggtitle("US Success projects")+
+  ylab("Success Percentage")+
+  xlab("Category")
+
+p2 <- ggplot(aes(main_category, per), data = ks.non)+
+  geom_bar(stat = "identity")+
+  theme(axis.text.x = element_text(angle=90, hjust=1)) +
+  geom_text(aes(label=round(per*100, digits = 0), vjust = -0.3))+
+  ggtitle("NON US Success projects")+
+  ylab("Success Percentage")+
+  xlab("Category")
+
+grid.arrange(p1,p2, ncol =2)
+
+```
+
+US has a higher success rate that the other countries in each category but both US and Non US countries has very less success rate when it comes to technology.
+
+# Multivariate Analysis
+
+### Talk about some of the relationships you observed in this part of the \
+Technology has the highest amount pledged whereas, comics and crafts has the lower average amount.
+Technology has twice the amount of Games even though games is the most funded category.
+Journalism and Dance have a higher average amount but they were at the bottom when it came to total funding.
+
+
+### Were there any interesting or surprising interactions between features?
+Games is not only the top category to get highest fundings but it alos has lot of backers(people) and their success ratio to backers is good.
+
+------
+
+# Final Plots and Summary
+
+### Plot One
+
+### Number of Projects per year
+```{r echo=FALSE, Plot_One}
+
+#plot
+ggplot(aes(year, count, fill = count), data = ks.year)+
+  geom_bar(stat = "identity")+
+  ggtitle("Project by Year")+
+  xlab("Year")+
+  ylab("Frequency")+
+  theme_minimal()+
+  geom_text(aes(label = count, vjust = -0.3))+
+  theme(legend.position = "null")+
+  scale_fill_gradient_tableau(palette = "Orange Light" )
+
+```
+
+### Description One
+Kickstarter started in 2009, we can see a huge rise in growth of projects during 2014 and 2015. Since, 2016 there is a decrease in the number of projects, we can't predict whether this trend will continue because we don't have enough data.   
+
+
+### Plot Two
+
+### Success and Failure of projects by year
+
+```{r echo=FALSE, Plot_Two}
+
+# plot
+ggplot(aes(year, per, fill = state), data = success.year)+
+  geom_bar(stat ="identity")+
+  ggtitle("Success and Failure rate of Projects by Year")+
+  xlab("Year")+
+  ylab("Percentage")+
+  scale_y_continuous(labels = scales::percent)+
+  scale_fill_discrete(name="Project Status", breaks=c("successful", "failed"),
+                      labels=c("Success", "Failure")) +
+  geom_text(aes(label=paste0(round(per*100,1),"%")), position=position_stack(vjust=0.5), 
+            colour="white", size=3)+
+  theme_minimal()+
+  theme(plot.title=element_text(hjust=0.5), legend.position="bottom")+
+  coord_flip()
+
+```
+
+### Description Two
+From the first plot we saw that there was a decrease in the number of projects per year, and in this plot we can see that 23014 and 2015 has the highest failure rate, while during 2016 and 2017 the success rate is been increasing. This tells us that only serious people are getting into kickstarter and the hype of startup or crowd funding is decreased over years.  
+
+### Plot Three
+
+### Amount Funded and Success rate by categories
+
+```{r echo=FALSE, Plot_Three}
+
+#plot 1
+p1 <- ggplot(aes(main_category, total/1000000, fill=total), data = pledged.cat)+
+  geom_bar(stat = 'identity')+
+  xlab("Main Category")+
+  ylab("USD Pledged")+
+  geom_text(aes(label = paste0('$', round(total/1000000, 1))),vjust = -0.3, size = 1)+
+  theme_minimal()+
+  theme(plot.title=element_text(hjust=0.5, size = 3),
+        axis.text.x = element_text(size = 7, angle = 90), legend.position = "null")+
+  scale_fill_gradient(low = "#feefb6", high = "#fecc0c")
+
+#plot 2
+p2 <- ggplot(aes(main_category, per, fill = state), data = state.cat)+
+  geom_bar(stat ="identity")+
+  xlab("Project Category")+
+  ylab("Percentage")+
+  scale_y_continuous(labels = scales::percent)+
+  scale_fill_discrete(name="Project Status", breaks=c("successful", "failed"),
+                      labels=c("Success", "Failure")) +
+  geom_text(aes(label=paste0(round(per*100,1),"%")), position=position_stack(vjust=0.5), 
+            colour="white", size=3)+
+  theme_classic()+
+  theme(plot.title=element_text(hjust=0.5), legend.position="bottom")+
+  coord_flip()
+
+#arrange 2 plots together
+grid.arrange(p1,p2, ncol = 2, 
+             top = textGrob("Amount Funded and Success rate by categories",gp=gpar(fontsize=15,font=1)))
+
+```
+
+### Description Three
+Games, Design and Technology have received the highest funding while Crafts, Dance and Journalism have received the lowest among all. But, Dance, Theater and Comics of all have a higher success rate while Technology has the lowest success rate, This might be because Dance, Theater and Comics have lower risks than Technology, But that's not the same with Journalism or Crafts. Even Games and Design doesn't have the success rate as of Dance or Theater but they are at the top and people seem to keep funding Games, Technology and Design because they tend to provide new and innovative things while Dance and Theater are just pure Entertainment, The reason for lower success rate of Journalism might be that not many people of this generation are intreseted in journalism and depend heavily on social networks for news and updates tham regular media.   
+
+------
+
+# Reflection
+
+Many factors affect success of projects on Kickstarter. Dance and Theater based projects have high success rate of 60% because of low risk involved. Games has 43% success rates and it has been able to get maximum amount of money on Kickstarter, around USD 600+ million. Design and Technology projects have low success rate because of high risk however, these projects are able to get huge funding only next to games. Backers on Kickstarter give more money to Games, Designs and Technology projects because these are innovative and disruptive projects. However, money generated by top 1000 projects under Games and under Designs generated similar amount of funding. 
+Even though success of the projects from Non US Countries are comparable to success of projects to the US, US outperforms all other countries in terms of Success percentage, projects from US have higher success percentage compared to projects outside USA. 
+Kickstarter started in 2009, we can see a huge rise in growth of projects during 2014 and 2015. Since, 2016 there is a decrease in the number of projects and the reason for this is because lot of projects between 2014 and 2015 failed but, quite surprisingly the successrate of projects since 2016 have been increased this might be because there is a decrease in crowd funding trend and only serious people tend to get into this after looking at the failure rate.
+Comparing top successful ambitious projects and top projects with higest set goals we can clearly see that the projects with higher goal either were failed or suspended or cancelled. Their goals must have been set too high and seen as being too unreasonable for the idea they were selling. And by comparing the amount difference between these two categories we can see there is a huge gap and projects with unrealistic goals always fail.
+
+The one thing that surprised me the most was the huge success rate in categories like Dance and Theater, and even though Technology, Games and deaign might not have a huge success rate people still fund them.
+
+For future work, exploring projects that fell short of their goal, projects that were well funded and got suspended and building a model that depicts the number of backers and also how far or short will the project get funded.
+
+The following conclusions are not certain, there may be issues with this methodology and we would need to address them to get a more definite result. The currency rate keeps on changing from time to time and we don't know when these were converetd to USD. We would need more data, more metrics and better statistical tests to confirm the following findings; but the data is rich enough and the metric good enough to warrant further study.
+
